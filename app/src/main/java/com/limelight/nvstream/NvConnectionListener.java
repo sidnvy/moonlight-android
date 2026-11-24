@@ -20,4 +20,6 @@ public interface NvConnectionListener {
     void setMotionEventState(short controllerNumber, byte motionType, short reportRateHz);
 
     void setControllerLED(short controllerNumber, byte r, byte g, byte b);
+
+    default void onHostClipboardText(String text, long contentHash, int flags) {}
 }

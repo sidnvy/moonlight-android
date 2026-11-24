@@ -11,6 +11,7 @@ import static com.limelight.utils.ServerHelper.getSecondaryDisplay;
 import com.limelight.binding.PlatformBinding;
 import com.limelight.binding.audio.AndroidAudioRenderer;
 import com.limelight.binding.audio.MicController;
+import com.limelight.binding.input.ClipboardSyncController;
 import com.limelight.binding.input.ControllerHandler;
 import com.limelight.binding.input.GameInputDevice;
 import com.limelight.binding.input.KeyboardTranslator;
@@ -236,6 +237,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private boolean reportedCrash;
     private static final int REQUEST_CODE_RECORD_AUDIO = 4201;
     private MicController micController;
+    private ClipboardSyncController clipboardSyncController;
 
     private WifiManager.WifiLock highPerfWifiLock;
     private WifiManager.WifiLock lowLatencyWifiLock;
@@ -1715,6 +1717,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             micController.stop();
             micController = null;
         }
+        if (clipboardSyncController != null) {
+            clipboardSyncController.reset();
+            clipboardSyncController = null;
+        }
         if (controllerHandler != null) {
             controllerHandler.destroy();
         }
@@ -2324,42 +2330,101 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         return new ClipData(clonedDescription, item);
     }
 
+    private ClipboardSyncController ensureClipboardSyncController() {
+        if (clipboardSyncController == null) {
+            clipboardSyncController = new ClipboardSyncController(
+                    (text, sensitive) -> runOnUiThread(() -> applyRemoteClipboard(text, sensitive)),
+                    new ClipboardSyncController.ClipboardTransport() {
+                        @Override
+                        public boolean hostSupportsClipboardEvent() {
+                            return MoonBridge.hostSupportsClipboardEvent();
+                        }
+
+                        @Override
+                        public int sendClipboardText(byte[] utf8Bytes, int flags) {
+                            return MoonBridge.sendClipboardText(utf8Bytes, flags);
+                        }
+                    });
+        }
+        return clipboardSyncController;
+    }
+
+    private void applyRemoteClipboard(String clipboardContent, boolean remoteSensitive) {
+        if (clipboardManager == null || clipboardContent == null) {
+            return;
+        }
+        ClipData clipData = ClipData.newPlainText(CLIPBOARD_IDENTIFIER, clipboardContent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            ClipDescription clipDescription = clipData.getDescription();
+            PersistableBundle newExtras = new PersistableBundle();
+            newExtras.putBoolean(CLIPBOARD_IDENTIFIER, true);
+            if (prefConfig.hideClipboardContent || remoteSensitive) {
+                newExtras.putBoolean("android.content.extra.IS_SENSITIVE", true);
+            }
+            clipDescription.setExtras(newExtras);
+        }
+        clipboardManager.setPrimaryClip(clipData);
+        if (prefConfig.smartClipboardSyncToast) {
+            Toast.makeText(Game.this, getString(R.string.get_clipboard_success), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onHostClipboardText(String text, long contentHash, int flags) {
+        if (connected) {
+            ensureClipboardSyncController().onHostClipboardReceived(text, contentHash, flags);
+        }
+    }
+
     public boolean sendClipboard(boolean force) {
+        String clipboardText = getClipboardContent(force);
+        if (clipboardText == null) {
+            return false;
+        }
+
+        if (connected && MoonBridge.hostSupportsClipboardEvent()) {
+            boolean ok = ensureClipboardSyncController().pushLocalClipboard(clipboardText, force);
+            if (ok && prefConfig.smartClipboardSyncToast) {
+                runOnUiThread(() -> Toast.makeText(Game.this, getString(R.string.send_clipboard_success), Toast.LENGTH_SHORT).show());
+            }
+            return ok;
+        }
+
         if (httpConn == null) {
             LimeLog.warning("httpConn not ready, cannot send clipboard!");
             return false;
         }
 
-        String clipboardText = getClipboardContent(force);
-        if (clipboardText != null) {
-            new Thread() {
-                public void run() {
-                    try {
-                        if (!httpConn.sendClipboard(clipboardText)) {
-                            if (prefConfig.smartClipboardSyncToast) {
-                                Game.this.runOnUiThread(() -> Toast.makeText(Game.this, getString(R.string.clipboard_sync_unsupported), Toast.LENGTH_SHORT).show());
-                            }
-                        } else {
-                            if (prefConfig.smartClipboardSyncToast) {
-                                Game.this.runOnUiThread(() -> Toast.makeText(Game.this, getString(R.string.send_clipboard_success), Toast.LENGTH_SHORT).show());
-                            }
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
+        new Thread() {
+            public void run() {
+                try {
+                    if (!httpConn.sendClipboard(clipboardText)) {
                         if (prefConfig.smartClipboardSyncToast) {
-                            Game.this.runOnUiThread(() -> Toast.makeText(Game.this, getString(R.string.send_clipboard_failed) + e.getMessage(), Toast.LENGTH_SHORT).show());
+                            Game.this.runOnUiThread(() -> Toast.makeText(Game.this, getString(R.string.clipboard_sync_unsupported), Toast.LENGTH_SHORT).show());
+                        }
+                    } else {
+                        if (prefConfig.smartClipboardSyncToast) {
+                            Game.this.runOnUiThread(() -> Toast.makeText(Game.this, getString(R.string.send_clipboard_success), Toast.LENGTH_SHORT).show());
                         }
                     }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    if (prefConfig.smartClipboardSyncToast) {
+                        Game.this.runOnUiThread(() -> Toast.makeText(Game.this, getString(R.string.send_clipboard_failed) + e.getMessage(), Toast.LENGTH_SHORT).show());
+                    }
                 }
-            }.start();
+            }
+        }.start();
 
-            return true;
-        }
-
-        return false;
+        return true;
     }
 
     public boolean getClipboard(int delay) {
+        if (connected && MoonBridge.hostSupportsClipboardEvent()) {
+            // Host pushes clipboard changes over Control Channel v1 (CLIPBOARD_EVENT) automatically.
+            return true;
+        }
+
         if (httpConn == null) {
             LimeLog.warning("httpConn not ready, cannot get clipboard!");
             return false;
@@ -2381,23 +2446,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                         sleep(delay);
                     }
                     String clipboardContent = httpConn.getClipboard();
-                    ClipData clipData = ClipData.newPlainText(CLIPBOARD_IDENTIFIER, clipboardContent);
-
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        ClipDescription clipDescription = clipData.getDescription();
-                        PersistableBundle newExtras = new PersistableBundle();
-                        newExtras.putBoolean(CLIPBOARD_IDENTIFIER, true);
-                        if (prefConfig.hideClipboardContent) {
-                            // We don't know if the message is sensitive or not, to be safe mark them all as sensitive.
-                            newExtras.putBoolean("android.content.extra.IS_SENSITIVE", true);
-                        }
-                        clipDescription.setExtras(newExtras);
-                    }
-
-                    clipboardManager.setPrimaryClip(clipData);
-                    if (prefConfig.smartClipboardSyncToast) {
-                        Game.this.runOnUiThread(() -> Toast.makeText(Game.this, getString(R.string.get_clipboard_success), Toast.LENGTH_SHORT).show());
-                    }
+                    Game.this.runOnUiThread(() -> applyRemoteClipboard(clipboardContent, false));
                 } catch (Exception e) {
                     e.printStackTrace();
                     if (prefConfig.smartClipboardSyncToast) {

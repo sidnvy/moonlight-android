@@ -27,6 +27,7 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    moonlight-common-c/src/RtspParser.c \
                    moonlight-common-c/src/SdpGenerator.c \
                    moonlight-common-c/src/SimpleStun.c \
+                   moonlight-common-c/src/StreamDesk.c \
                    moonlight-common-c/src/VideoDepacketizer.c \
                    moonlight-common-c/src/VideoFormats.c \
                    moonlight-common-c/src/VideoStream.c \
@@ -46,6 +47,7 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    callbacks.c \
                    minisdl.c \
                    micjni.c \
+                   streamdeskjni.c \
 
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/moonlight-common-c/enet/include \

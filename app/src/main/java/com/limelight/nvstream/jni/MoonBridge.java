@@ -328,6 +328,15 @@ public class MoonBridge {
         }
     }
 
+    public static void bridgeClClipboardText(byte[] utf8Bytes, long contentHash, int flags) {
+        if (connectionListener != null && utf8Bytes != null && utf8Bytes.length > 0) {
+            connectionListener.onHostClipboardText(
+                    new String(utf8Bytes, java.nio.charset.StandardCharsets.UTF_8),
+                    contentHash,
+                    flags);
+        }
+    }
+
     public static void setupBridge(VideoDecoderRenderer videoRenderer, AudioRenderer audioRenderer, NvConnectionListener connectionListener) {
         MoonBridge.videoRenderer = videoRenderer;
         MoonBridge.audioRenderer = audioRenderer;
@@ -365,6 +374,16 @@ public class MoonBridge {
     public static native int encodeAndSendMic(long encoderPtr, short[] pcm, int sequence, long timestampSamples);
 
     public static native void destroyMicEncoder(long encoderPtr);
+
+    public static native boolean hostSupportsCommitText();
+
+    public static native int sendCommitText(byte[] utf8Bytes);
+
+    public static native boolean hostSupportsClipboardEvent();
+
+    public static native int sendClipboardText(byte[] utf8Bytes, int flags);
+
+    public static native long computeClipboardHash(byte[] utf8Bytes);
 
     public static native void sendMouseMove(short deltaX, short deltaY);
 

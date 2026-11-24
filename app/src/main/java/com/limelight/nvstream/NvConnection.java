@@ -14,6 +14,7 @@ import android.net.RouteInfo;
 import android.os.Build;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -617,7 +618,13 @@ public class NvConnection {
     }
 
     public void sendUtf8Text(final String text) {
-        if (!isMonkey) {
+        if (!isMonkey && text != null && !text.isEmpty()) {
+            if (MoonBridge.hostSupportsCommitText()) {
+                byte[] utf8 = text.getBytes(StandardCharsets.UTF_8);
+                if (MoonBridge.sendCommitText(utf8) == 0) {
+                    return;
+                }
+            }
             MoonBridge.sendUtf8Text(text);
         }
     }

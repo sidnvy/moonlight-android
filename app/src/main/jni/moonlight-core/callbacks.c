@@ -38,6 +38,7 @@ static jmethodID BridgeClSetHdrModeMethod;
 static jmethodID BridgeClRumbleTriggersMethod;
 static jmethodID BridgeClSetMotionEventStateMethod;
 static jmethodID BridgeClSetControllerLEDMethod;
+static jmethodID BridgeClClipboardTextMethod;
 static jbyteArray DecodedFrameBuffer;
 static jshortArray DecodedAudioBuffer;
 
@@ -102,6 +103,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     BridgeClRumbleTriggersMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClRumbleTriggers", "(SSS)V");
     BridgeClSetMotionEventStateMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetMotionEventState", "(SBS)V");
     BridgeClSetControllerLEDMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetControllerLED", "(SBBB)V");
+    BridgeClClipboardTextMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClClipboardText", "([BJI)V");
 }
 
 int BridgeDrSetup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags) {
@@ -396,6 +398,28 @@ void BridgeClLogMessage(const char* format, ...) {
     va_end(va);
 }
 
+void BridgeClClipboardText(const char* utf8Text, uint32_t length, uint64_t contentHash, uint8_t flags) {
+    if (utf8Text == NULL || length == 0) {
+        return;
+    }
+
+    JNIEnv* env = GetThreadEnv();
+    jbyteArray bytes = (*env)->NewByteArray(env, (jsize)length);
+    if (bytes == NULL) {
+        if ((*env)->ExceptionCheck(env)) {
+            (*env)->ExceptionClear(env);
+        }
+        return;
+    }
+
+    (*env)->SetByteArrayRegion(env, bytes, 0, (jsize)length, (const jbyte*)utf8Text);
+    (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeClClipboardTextMethod, bytes, (jlong)contentHash, (jint)flags);
+    (*env)->DeleteLocalRef(env, bytes);
+    if ((*env)->ExceptionCheck(env)) {
+        (*JVM)->DetachCurrentThread(JVM);
+    }
+}
+
 static DECODER_RENDERER_CALLBACKS BridgeVideoRendererCallbacks = {
         .setup = BridgeDrSetup,
         .start = BridgeDrStart,
@@ -426,6 +450,7 @@ static CONNECTION_LISTENER_CALLBACKS BridgeConnListenerCallbacks = {
         .rumbleTriggers = BridgeClRumbleTriggers,
         .setMotionEventState = BridgeClSetMotionEventState,
         .setControllerLED = BridgeClSetControllerLED,
+        .clipboardText = BridgeClClipboardText,
 };
 
 static bool
