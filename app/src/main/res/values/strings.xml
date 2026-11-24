@@ -385,6 +385,7 @@
     <string name="game_menu_toggle_mouse_off">Disable Controller Mouse Emulation</string>
     <string name="game_menu_toggle_mic_on">Microphone: Off → Enable</string>
     <string name="game_menu_toggle_mic_off">Microphone: On → Disable</string>
+    <string name="game_menu_toggle_workdock">Toggle WorkDock Bar</string>
     <string name="mic_enabled_toast">Microphone enabled</string>
     <string name="mic_disabled_toast">Microphone disabled</string>
     <string name="mic_unsupported_toast">Host does not support reverse microphone</string>

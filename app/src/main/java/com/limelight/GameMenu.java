@@ -328,6 +328,9 @@ public class GameMenu implements Game.GameMenuCallbacks {
         options.add(new MenuOption(getString(game.isMicrophoneActive() ? R.string.game_menu_toggle_mic_off : R.string.game_menu_toggle_mic_on), true,
                 game::toggleMicrophone));
 
+        options.add(new MenuOption(getString(R.string.game_menu_toggle_workdock), true,
+                game::toggleWorkDock));
+
         options.add(new MenuOption(getString(R.string.game_menu_advanced), true,
                 () -> showAdvancedMenu(device)));
 

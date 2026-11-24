@@ -30,6 +30,7 @@ import com.limelight.binding.video.CrashListener;
 import com.limelight.binding.video.MediaCodecDecoderRenderer;
 import com.limelight.binding.video.MediaCodecHelper;
 import com.limelight.binding.video.PerfOverlayListener;
+import com.limelight.binding.video.StreamGeometryHelper;
 import com.limelight.nvstream.NvConnection;
 import com.limelight.nvstream.NvConnectionListener;
 import com.limelight.nvstream.StreamConfiguration;
@@ -45,6 +46,7 @@ import com.limelight.profiles.ProfilesManager;
 import com.limelight.ui.ExternalControllerView;
 import com.limelight.ui.GameGestures;
 import com.limelight.ui.StreamContainer;
+import com.limelight.ui.WorkDockController;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.ExternalDisplayControlActivity;
 import com.limelight.utils.MouseModeOption;
@@ -238,6 +240,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private static final int REQUEST_CODE_RECORD_AUDIO = 4201;
     private MicController micController;
     private ClipboardSyncController clipboardSyncController;
+    private WorkDockController workDockController;
 
     private WifiManager.WifiLock highPerfWifiLock;
     private WifiManager.WifiLock lowLatencyWifiLock;
@@ -782,6 +785,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             chosenFrameRate *= prefConfig.framePacingWarpFactor;
         }
 
+        int[] alignedDims = StreamGeometryHelper.alignResolution(displayWidth, displayHeight, true);
+        displayWidth = alignedDims[0];
+        displayHeight = alignedDims[1];
+
         StreamConfiguration config = new StreamConfiguration.Builder()
                 .setResolution(
                         displayWidth,
@@ -791,6 +798,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 .setRefreshRate(chosenFrameRate)
                 .setVirtualDisplay(vDisplay)
                 .setResolutionScaleFactor(prefConfig.resolutionScaleFactor)
+                .setDesktopScale(StreamGeometryHelper.computeDesktopScale(prefConfig.resolutionScaleFactor))
                 .setApp(app)
                 .setEnableUltraLowLatency(prefConfig.enableUltraLowLatency)
                 .setBitrate(isMetered ? prefConfig.meteredBitrate: prefConfig.bitrate)
@@ -1720,6 +1728,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         if (clipboardSyncController != null) {
             clipboardSyncController.reset();
             clipboardSyncController = null;
+        }
+        if (workDockController != null) {
+            workDockController.destroy();
+            workDockController = null;
         }
         if (controllerHandler != null) {
             controllerHandler.destroy();
@@ -4282,6 +4294,48 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         }
     }
 
+    public void toggleWorkDock() {
+        if (workDockController == null && rootView instanceof FrameLayout) {
+            workDockController = new WorkDockController(this, (FrameLayout) rootView, new WorkDockController.Actions() {
+                @Override
+                public void onToggleMic() {
+                    toggleMicrophone();
+                }
+
+                @Override
+                public void onToggleKeyboard() {
+                    toggleKeyboard();
+                }
+
+                @Override
+                public void onPasteClipboard() {
+                    String clip = getClipboardContent(true);
+                    if (clip != null && !clip.isEmpty() && conn != null) {
+                        conn.sendUtf8Text(clip);
+                    }
+                }
+
+                @Override
+                public void onSendEsc() {
+                    sendKeys(new short[]{(short) 0x1B});
+                }
+
+                @Override
+                public void onOpenMenu() {
+                    showGameMenu(null);
+                }
+
+                @Override
+                public void onVisibilityChanged(boolean visible) {
+                    // Tracked inside controller; no-op hook
+                }
+            });
+        }
+        if (workDockController != null) {
+            workDockController.toggle(isMicrophoneActive());
+        }
+    }
+
     public boolean isMicrophoneActive() {
         return micController != null && micController.isActive();
     }
@@ -4289,6 +4343,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public void toggleMicrophone() {
         if (isMicrophoneActive()) {
             micController.stop();
+            if (workDockController != null) {
+                workDockController.updateMicState(false);
+            }
             Toast.makeText(this, R.string.mic_disabled_toast, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -4310,12 +4367,18 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private void startMicrophoneInternal() {
         if (micController == null) {
             micController = new MicController((active, reason) -> runOnUiThread(() -> {
+                if (workDockController != null) {
+                    workDockController.updateMicState(active);
+                }
                 if (!active && reason != null) {
                     Toast.makeText(Game.this, R.string.mic_disabled_toast, Toast.LENGTH_SHORT).show();
                 }
             }));
         }
         if (micController.start()) {
+            if (workDockController != null) {
+                workDockController.updateMicState(true);
+            }
             Toast.makeText(this, R.string.mic_enabled_toast, Toast.LENGTH_SHORT).show();
         } else {
             Toast.makeText(this, R.string.mic_unsupported_toast, Toast.LENGTH_SHORT).show();

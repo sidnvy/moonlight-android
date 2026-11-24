@@ -16,6 +16,7 @@ public class StreamConfiguration {
     private float launchRefreshRate;
     private boolean virtualDisplay;
     private int resolutionScaleFactor;
+    private float desktopScale;
     private int clientRefreshRateX100;
     private int bitrate;
     private boolean sops;
@@ -68,6 +69,11 @@ public class StreamConfiguration {
 
         public StreamConfiguration.Builder setResolutionScaleFactor(int scaleFactor) {
             config.resolutionScaleFactor = scaleFactor;
+            return this;
+        }
+
+        public StreamConfiguration.Builder setDesktopScale(float desktopScale) {
+            config.desktopScale = desktopScale;
             return this;
         }
         
@@ -257,5 +263,9 @@ public class StreamConfiguration {
 
     public boolean getEnableUltraLowLatency() {
         return enableUltraLowLatency;
+    }
+
+    public float getDesktopScale() {
+        return desktopScale;
     }
 }
