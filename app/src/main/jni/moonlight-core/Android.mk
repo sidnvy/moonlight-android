@@ -16,6 +16,7 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    moonlight-common-c/src/FakeCallbacks.c \
                    moonlight-common-c/src/InputStream.c \
                    moonlight-common-c/src/LinkedBlockingQueue.c \
+                   moonlight-common-c/src/Mic.c \
                    moonlight-common-c/src/Misc.c \
                    moonlight-common-c/src/Platform.c \
                    moonlight-common-c/src/PlatformCrypto.c \
@@ -44,6 +45,7 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    simplejni.c \
                    callbacks.c \
                    minisdl.c \
+                   micjni.c \
 
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/moonlight-common-c/enet/include \

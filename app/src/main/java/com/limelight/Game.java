@@ -10,6 +10,7 @@ import static com.limelight.utils.ServerHelper.getSecondaryDisplay;
 
 import com.limelight.binding.PlatformBinding;
 import com.limelight.binding.audio.AndroidAudioRenderer;
+import com.limelight.binding.audio.MicController;
 import com.limelight.binding.input.ControllerHandler;
 import com.limelight.binding.input.GameInputDevice;
 import com.limelight.binding.input.KeyboardTranslator;
@@ -53,6 +54,7 @@ import com.limelight.utils.ShortcutHelper;
 import com.limelight.utils.SpinnerDialog;
 import com.limelight.utils.UiHelper;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.AlertDialog;
@@ -232,6 +234,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     private MediaCodecDecoderRenderer decoderRenderer;
     private boolean reportedCrash;
+    private static final int REQUEST_CODE_RECORD_AUDIO = 4201;
+    private MicController micController;
 
     private WifiManager.WifiLock highPerfWifiLock;
     private WifiManager.WifiLock lowLatencyWifiLock;
@@ -1707,6 +1711,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         if (prefConfig.enableFullExDisplay) handleDisplayRemoved();
 
+        if (micController != null) {
+            micController.stop();
+            micController = null;
+        }
         if (controllerHandler != null) {
             controllerHandler.destroy();
         }
@@ -3456,6 +3464,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             connecting = connected = false;
             updatePipAutoEnter();
 
+            if (micController != null) {
+                micController.stop();
+            }
+
             controllerHandler.stop();
 
             // Update GameManager state to indicate we're no longer in game
@@ -4218,6 +4230,60 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             }
         } else {
             performanceOverlayView.setVisibility(View.GONE);
+        }
+    }
+
+    public boolean isMicrophoneActive() {
+        return micController != null && micController.isActive();
+    }
+
+    public void toggleMicrophone() {
+        if (isMicrophoneActive()) {
+            micController.stop();
+            Toast.makeText(this, R.string.mic_disabled_toast, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!connected || !MoonBridge.hostSupportsMicrophone()) {
+            Toast.makeText(this, R.string.mic_unsupported_toast, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQUEST_CODE_RECORD_AUDIO);
+            return;
+        }
+
+        startMicrophoneInternal();
+    }
+
+    private void startMicrophoneInternal() {
+        if (micController == null) {
+            micController = new MicController((active, reason) -> runOnUiThread(() -> {
+                if (!active && reason != null) {
+                    Toast.makeText(Game.this, R.string.mic_disabled_toast, Toast.LENGTH_SHORT).show();
+                }
+            }));
+        }
+        if (micController.start()) {
+            Toast.makeText(this, R.string.mic_enabled_toast, Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, R.string.mic_unsupported_toast, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CODE_RECORD_AUDIO) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (connected) {
+                    startMicrophoneInternal();
+                }
+            } else {
+                Toast.makeText(this, R.string.mic_permission_denied_toast, Toast.LENGTH_SHORT).show();
+            }
         }
     }
 

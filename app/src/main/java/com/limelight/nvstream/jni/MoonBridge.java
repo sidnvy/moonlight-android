@@ -358,6 +358,14 @@ public class MoonBridge {
 
     public static native void sendEmptyPayload();
 
+    public static native boolean hostSupportsMicrophone();
+
+    public static native long createMicEncoder();
+
+    public static native int encodeAndSendMic(long encoderPtr, short[] pcm, int sequence, long timestampSamples);
+
+    public static native void destroyMicEncoder(long encoderPtr);
+
     public static native void sendMouseMove(short deltaX, short deltaY);
 
     public static native void sendMousePosition(short x, short y, short referenceWidth, short referenceHeight);
