@@ -1,6 +1,7 @@
 package com.limelight.ui;
 
 import android.content.Context;
+import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.opengl.GLSurfaceView;
 import android.util.AttributeSet;
@@ -8,6 +9,7 @@ import android.view.KeyEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
@@ -15,6 +17,7 @@ import android.widget.FrameLayout;
 
 import com.limelight.Game;
 import com.limelight.LimeLog;
+import com.limelight.binding.input.VideoCoordinates;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.utils.Stereo3DRenderer;
 
@@ -54,6 +57,11 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
     private boolean fillDisplay = false;
 
     private boolean isSurfaceReady = false;
+
+    private final Matrix inputTransform = new Matrix();
+    private float userZoomScale = 1f;
+    private float decoderPaddingScaleX = 1f;
+    private float decoderPaddingScaleY = 1f;
 
     public StreamContainer(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -214,6 +222,53 @@ public class StreamContainer extends FrameLayout implements SurfaceHolder.Callba
 
     public SurfaceView getSurfaceView() {
         return mSurfaceView;
+    }
+
+    private void applySurfaceViewScale() {
+        if (renderMode != StreamMode.MODE_2D || mSurfaceView == null) {
+            return;
+        }
+        setClipChildren(true);
+        setClipToPadding(true);
+        mSurfaceView.setPivotX(0f);
+        mSurfaceView.setPivotY(0f);
+        mSurfaceView.setScaleX(userZoomScale * decoderPaddingScaleX);
+        mSurfaceView.setScaleY(userZoomScale * decoderPaddingScaleY);
+    }
+
+    public void setDecoderPaddingCompensation(float scaleX, float scaleY) {
+        if (!Float.isFinite(scaleX) || !Float.isFinite(scaleY) ||
+                scaleX < 1f || scaleY < 1f ||
+                scaleX > 1.10f || scaleY > 1.02f) {
+            scaleX = 1f;
+            scaleY = 1f;
+        }
+        decoderPaddingScaleX = scaleX;
+        decoderPaddingScaleY = scaleY;
+        applySurfaceViewScale();
+    }
+
+    public void setUserZoomScale(float zoomScale) {
+        if (!Float.isFinite(zoomScale) || zoomScale < 1f) {
+            return;
+        }
+        userZoomScale = zoomScale;
+        applySurfaceViewScale();
+    }
+
+    /** Map an event view into the unzoomed video reference plane used on the wire. */
+    public float[] mapInputToVideo(View sourceView, float x, float y) {
+        float[] point = { x, y };
+        if (sourceView != null && sourceView != this) {
+            inputTransform.reset();
+            sourceView.transformMatrixToGlobal(inputTransform);
+            transformMatrixToLocal(inputTransform);
+            inputTransform.mapPoints(point);
+        }
+        float panX = mSurfaceView != null ? mSurfaceView.getX() : 0f;
+        float panY = mSurfaceView != null ? mSurfaceView.getY() : 0f;
+        VideoCoordinates.unproject(point, panX, panY, userZoomScale);
+        return point;
     }
 
     public StreamMode mapIntToStreamMode(int modeIndex) {

@@ -162,6 +162,59 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private MediaFormat outputFormat;
     private MediaFormat configuredFormat;
 
+    public interface OutputGeometryListener {
+        void onOutputGeometryChanged(DecoderPaddingCompensation geometry);
+    }
+
+    private volatile OutputGeometryListener outputGeometryListener;
+
+    public void setOutputGeometryListener(OutputGeometryListener listener) {
+        this.outputGeometryListener = listener;
+    }
+
+    private void notifyOutputGeometry(MediaFormat decodedFormat) {
+        OutputGeometryListener listener = this.outputGeometryListener;
+        if (listener == null || decodedFormat == null) {
+            return;
+        }
+        DecoderPaddingCompensation fix = DecoderPaddingCompensation.none();
+        try {
+            String mime = null;
+            if (configuredFormat != null && configuredFormat.containsKey(MediaFormat.KEY_MIME)) {
+                mime = configuredFormat.getString(MediaFormat.KEY_MIME);
+            } else if (inputFormat != null && inputFormat.containsKey(MediaFormat.KEY_MIME)) {
+                mime = inputFormat.getString(MediaFormat.KEY_MIME);
+            }
+            int frameWidth = decodedFormat.containsKey(MediaFormat.KEY_WIDTH)
+                    ? decodedFormat.getInteger(MediaFormat.KEY_WIDTH) : 0;
+            int frameHeight = decodedFormat.containsKey(MediaFormat.KEY_HEIGHT)
+                    ? decodedFormat.getInteger(MediaFormat.KEY_HEIGHT) : 0;
+            int left = decodedFormat.containsKey("crop-left")
+                    ? decodedFormat.getInteger("crop-left") : 0;
+            int top = decodedFormat.containsKey("crop-top")
+                    ? decodedFormat.getInteger("crop-top") : 0;
+            int visibleWidth = decodedFormat.containsKey("crop-right")
+                    ? decodedFormat.getInteger("crop-right") + 1 - left
+                    : frameWidth;
+            int visibleHeight = decodedFormat.containsKey("crop-bottom")
+                    ? decodedFormat.getInteger("crop-bottom") + 1 - top
+                    : frameHeight;
+            int targetW = invertResolution ? initialHeight : initialWidth;
+            int targetH = invertResolution ? initialWidth : initialHeight;
+            fix = DecoderPaddingCompensation.forFormat(
+                    mime, targetW, targetH, visibleWidth, visibleHeight, left, top);
+            if (fix.enabled) {
+                LimeLog.info("AV1 aligned encoder padding detected: stream " +
+                        targetW + "x" + targetH + ", decoded " +
+                        visibleWidth + "x" + visibleHeight +
+                        "; compensating video SurfaceView geometry only");
+            }
+        } catch (IllegalStateException | IllegalArgumentException ex) {
+            LimeLog.warning("Unable to read decoded video geometry");
+        }
+        listener.onOutputGeometryChanged(fix);
+    }
+
     private boolean needsBaselineSpsHack;
     private SeqParameterSet savedSps;
 
@@ -1464,6 +1517,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                                     LimeLog.info("Output format changed");
                                     outputFormat = videoDecoder.getOutputFormat();
                                     LimeLog.info("New output format: " + outputFormat);
+                                    notifyOutputGeometry(outputFormat);
                                     break;
                                 default:
                                     break;

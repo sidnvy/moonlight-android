@@ -126,8 +126,7 @@ public class PanZoomHandler {
 
             scaleFactor = newScaleFactor;
 
-            streamView.setScaleX(scaleFactor);
-            streamView.setScaleY(scaleFactor);
+            applyScale(scaleFactor);
 
             streamView.setX(childX);
             streamView.setY(childY);
@@ -156,11 +155,19 @@ public class PanZoomHandler {
         }
     }
 
+    private void applyScale(float s) {
+        if (parent instanceof com.limelight.ui.StreamContainer) {
+            ((com.limelight.ui.StreamContainer) parent).setUserZoomScale(s);
+        } else {
+            streamView.setScaleX(s);
+            streamView.setScaleY(s);
+        }
+    }
+
     public void setInitialZoomAndPan(float scale, float offsetX, float offsetY) {
         this.scaleFactor = scale;
         // apply to view
-        streamView.setScaleX(scaleFactor);
-        streamView.setScaleY(scaleFactor);
+        applyScale(scaleFactor);
         this.childX = offsetX;
         this.childY = offsetY;
         streamView.setX(childX);
