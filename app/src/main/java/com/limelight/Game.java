@@ -89,6 +89,7 @@ import android.os.IBinder;
 import android.os.PersistableBundle;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.util.DisplayMetrics;
 import android.util.Rational;
 import android.view.Display;
 import android.view.Gravity;
@@ -796,6 +797,19 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
         displayWidth = alignedDims[0];
         displayHeight = alignedDims[1];
 
+        DisplayMetrics displayMetrics = new DisplayMetrics();
+        if (currentDisplay != null) {
+            currentDisplay.getRealMetrics(displayMetrics);
+        } else {
+            displayMetrics = getResources().getDisplayMetrics();
+        }
+        float desktopScale = StreamGeometryHelper.computeDesktopScale(
+                prefConfig.resolutionScaleFactor,
+                displayWidth,
+                displayHeight,
+                displayMetrics.density
+        );
+
         StreamConfiguration config = new StreamConfiguration.Builder()
                 .setResolution(
                         displayWidth,
@@ -805,7 +819,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
                 .setRefreshRate(chosenFrameRate)
                 .setVirtualDisplay(vDisplay)
                 .setResolutionScaleFactor(prefConfig.resolutionScaleFactor)
-                .setDesktopScale(StreamGeometryHelper.computeDesktopScale(prefConfig.resolutionScaleFactor))
+                .setDesktopScale(desktopScale)
                 .setApp(app)
                 .setEnableUltraLowLatency(prefConfig.enableUltraLowLatency)
                 .setBitrate(isMetered ? prefConfig.meteredBitrate: prefConfig.bitrate)

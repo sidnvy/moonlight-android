@@ -39,4 +39,14 @@ public class StreamGeometryHelperTest {
         assertFalse(StreamGeometryHelper.isFoldableSquareAspect(2316, 904));
         assertFalse(StreamGeometryHelper.isFoldableSquareAspect(2880, 1800));
     }
+
+    @Test
+    public void computeProductivityDesktopScaleFromViewportAndDensity() {
+        assertEquals(1.80f, StreamGeometryHelper.computeDesktopScale(100, 2448, 1848, 2.8125f), 0.001f);
+        assertEquals(2.00f, StreamGeometryHelper.computeDesktopScale(100, 1848, 2448, 2.8125f), 0.001f);
+        assertEquals(1.00f, StreamGeometryHelper.computeDesktopScale(100, 1920, 1080, 1.0f), 0.001f);
+        assertEquals(1.50f, StreamGeometryHelper.computeDesktopScale(150, 2448, 1848, 2.8125f), 0.001f);
+        assertEquals(0.0f, StreamGeometryHelper.computeDesktopScale(100, 2448, 1848, 0.0f), 0.001f);
+        assertEquals(0.0f, StreamGeometryHelper.computeDesktopScale(100, 2448, 1848, Float.NaN), 0.001f);
+    }
 }

@@ -42,6 +42,25 @@ public final class StreamGeometryHelper {
     }
 
     /**
+     * Computes productivity desktop scale from the client display pixel dimensions and density
+     * when {@code resolutionScaleFactor} is left at default (100 or unset). Caps scale so
+     * desktop apps receive at least ~1360 logical px in landscape or ~800 logical px in portrait.
+     */
+    public static float computeDesktopScale(int resolutionScaleFactor, int pixelWidth, int pixelHeight, float density) {
+        float explicitScale = computeDesktopScale(resolutionScaleFactor);
+        if (explicitScale > 0.0f) {
+            return explicitScale;
+        }
+        if (pixelWidth <= 0 || pixelHeight <= 0 || !Float.isFinite(density) || density <= 0.0f) {
+            return 0.0f;
+        }
+        float fromDensity = Math.max(0.5f, Math.min(4.0f, density));
+        float targetWidth = pixelWidth >= pixelHeight ? 1360.0f : 800.0f;
+        float workspaceScale = Math.max(1.0f, Math.min(2.0f, pixelWidth / targetWidth));
+        return Math.min(fromDensity, workspaceScale);
+    }
+
+    /**
      * Identifies near-square unfolded foldable displays (e.g. Galaxy Z Fold series inner panel).
      */
     public static boolean isFoldableSquareAspect(int width, int height) {
